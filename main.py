@@ -33,6 +33,11 @@ class Hole(ZGeometry):
         return -1.0 / np.linalg.norm(uv, axis=-1)
 
 
+class Bump(ZGeometry):
+    def z(self, uv: np.ndarray) -> float:
+        return np.cos(np.linalg.norm(uv, axis=-1))
+
+
 def compute_gamma(geometry: Geometry, position: np.ndarray) -> np.ndarray:
     """Evaluates Christoffer Symbol of geometry at position"""
     return np.array([
@@ -56,7 +61,7 @@ def acceleration(geometry: Geometry, position: np.ndarray, velocity: np.ndarray)
 def main():
     rr.init("plotter-art", spawn=True)
 
-    geometry = Hole()
+    geometry = Bump()
     #p = np.array([0.5, 0.5])
     #v = np.array([0.1, 0.1])
     gw, gh = 20, 20
