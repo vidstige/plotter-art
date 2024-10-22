@@ -107,13 +107,17 @@ def main():
         rr.Points3D(positions, radii=0.01)
     )
 
-    p = np.array([-1.5, -0.2])
-    v = np.array([2, 1])
-    v = v / np.linalg.norm(v, axis=-1)
-    curve = trace(geometry, p, v, 4, 0.1)
+    n = 10
+    ps = np.vstack([-0.5*w*np.ones(n), np.linspace(-0.5*h, 0.5*h, n)]).T
+    vs = np.vstack([np.ones(n), np.zeros(n)]).T
+    vs = vs / np.expand_dims(np.linalg.norm(vs, axis=-1), axis=-1)
 
-    line_strip = [geometry.evaluate(uv) for uv in curve]
-    rr.log("strip", rr.LineStrips3D([line_strip]))
+    line_strips = []
+    for p, v in zip(ps, vs):
+        curve = trace(geometry, p, v, w, 0.25)
+        line_strip = [geometry.evaluate(uv) for uv in curve]
+        line_strips.append(line_strip)
+    rr.log("strip", rr.LineStrips3D(line_strips))
 
 
 main()
