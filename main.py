@@ -82,15 +82,7 @@ def compute_gamma(geometry: Geometry, p: jnp.ndarray) -> jnp.ndarray:
 
     # compute tensor product gamma^k_ij = (d²R/du^i du^j) * (dR/du^l) * (g^-1)^lk
     # the index l is thus summed over
-    # TODO: use einsum instead
-    tmp = np.zeros([2, 2, 2])
-    for k in range(2):
-        for i in range(2):
-            for j in range(2):
-                for l in range(2):
-                    tmp[k][i][j] += np.dot(d2[:, i, j], d[:, l]) * inverse_metric[l, k]
-                    #tmp[k][i][j] += d2[i][j].dot(&d[l]) * inverse_metric[(l, k)];
-    return tmp
+    return np.einsum('lij,lk,mk->mij', d2, d, inverse_metric)
 
 import numpy as np
 def acceleration(geometry: Geometry, position: np.ndarray, velocity: np.ndarray) -> np.ndarray:
