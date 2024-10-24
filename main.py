@@ -13,6 +13,24 @@ class Geometry:
         """Computes 3d-position for a uv position"""
         del uv
         raise NotImplemented
+    
+    def jacobian(self, uv: jnp.ndarray) -> jnp.ndarray:
+        """Computes the jacobian (all partial differentials) at (u,v). It's 3x2
+        matrix with one row for each output cordinate and one colmn for each input cordinate"""
+        del uv
+        raise NotImplemented
+
+    def hessian(self, uv: jnp.ndarray) -> jnp.ndarray:
+        """Evaluates the hessian (all 2nd order partial differentials) at (u, v)"""
+        del uv
+        raise NotImplemented
+
+
+class AutoDiffMixin:
+    """Provides automatically computed differentials"""
+    def __init__(self) -> None:
+        self.jacobian = jax.jacrev(self.evaluate)
+        self.hessian = jax.jacfwd(self.jacobian)
 
 
 #@dataclass
@@ -32,12 +50,12 @@ class ZGeometry(Geometry):
         raise NotImplemented
 
 
-class Hole(ZGeometry):
+class Hole(ZGeometry, AutoDiffMixin):
     def z(self, uv: jnp.ndarray) -> float:
         return -1.0 / jnp.linalg.norm(uv, axis=-1)
 
 
-class Bump(ZGeometry):
+class Bump(ZGeometry, AutoDiffMixin):
     def z(self, uv: jnp.ndarray) -> float:
         r = jnp.linalg.norm(uv, axis=-1)
         return jnp.cos(r)
@@ -45,7 +63,7 @@ class Bump(ZGeometry):
 
 def evaluate_metric(geometry: Geometry, uv: jnp.ndarray) -> jnp.ndarray:
     # compute d/du and d/dv
-    jacobian = jax.jacrev(geometry.evaluate)(uv)
+    jacobian = geometry.jacobian(uv)
     # metric is just all the dot products of the three combinations
     # of the two partial derivatives
     return np.dot(jacobian.T, jacobian)
@@ -57,12 +75,10 @@ def compute_gamma(geometry: Geometry, p: jnp.ndarray) -> jnp.ndarray:
     inverse_metric = jnp.linalg.inv(metric)
 
     # compute all first order partial differentials at p, dx/du, dy/du, and so on
-    jacobian = jax.jacrev(geometry.evaluate)
-    d = jacobian(p)
+    d = geometry.jacobian(p)
 
     # compute all second order partial differentials, d²x/du², d²/dudv, d²x/du², d^2y/du^2 and so on
-    hessian = jax.jacfwd(jacobian)
-    d2 = hessian(p)
+    d2 = geometry.hessian(p)
 
     # compute tensor product gamma^k_ij = (d²R/du^i du^j) * (dR/du^l) * (g^-1)^lk
     # the index l is thus summed over
@@ -107,7 +123,7 @@ def main():
         rr.Points3D(positions, radii=0.01)
     )
 
-    n = 10
+    n = 20
     ps = np.vstack([-0.5*w*np.ones(n), np.linspace(-0.5*h, 0.5*h, n)]).T
     vs = np.vstack([np.ones(n), np.zeros(n)]).T
     vs = vs / np.expand_dims(np.linalg.norm(vs, axis=-1), axis=-1)
