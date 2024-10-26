@@ -50,25 +50,32 @@ class DepthImageGeometry(Geometry):
     def evaluate(self, uv: np.ndarray) -> np.array:
         # x = u, y = v, z = f(u, v)
         u, v = np.hsplit(uv, 2)
-        ui, vi = np.astype(u, np.int32), np.astype(v, np.int32)
+        h, w = self.image.shape
+        ui = np.clip(np.astype(u, np.int32), 0, w - 1)
+        vi = np.clip(np.astype(v, np.int32), 0, h - 1)
         return np.hstack([uv, self.image[vi, ui]])
 
     def jacobian(self, uv: jnp.ndarray) -> jnp.ndarray:
         u, v = uv
-        return jnp.array([
+        h, w = self.image.shape
+        ui = np.clip(np.astype(u, np.int32), 0, w - 1)
+        vi = np.clip(np.astype(v, np.int32), 0, h - 1)
+        return np.array([            
             [1, 0],  # dx/du, dx/dv
             [0, 1],  # dy/du, dy/dv
             [
-                self.dzdu[int(v), int(u)],  # dz/du
-                self.dzdv[int(v), int(u)],  # dz/dv
+                self.dzdu[vi, ui],  # dz/du
+                self.dzdv[vi, ui],  # dz/dv
              ],
         ])
 
     def hessian(self, uv: jnp.ndarray) -> jnp.ndarray:
         # d2: shape (3, 2, 2)
         u, v = uv
-        ui, vi = int(u), int(v)
-        return jnp.array([
+        h, w = self.image.shape
+        ui = np.clip(int(u), 0, w - 1)
+        vi = np.clip(int(v), 0, h - 1)
+        return np.array([
             [
                 [0, 0],
                 [0, 0],
@@ -139,6 +146,8 @@ def trace(geometry: Geometry, p: np.ndarray, v: np.ndarray, length: float, dt: f
     for _ in range(int(length / dt)):
         yield p
         a = acceleration(geometry, p, v)
+        if np.linalg.norm(a) > 10:
+            return
         p = p + v * dt
         v = v + a * dt
 
@@ -150,7 +159,7 @@ def main():
 
     im = Image.open("depth/per.png")
     geometry = DepthImageGeometry(im)
-    gw, gh = 128, 128
+    gw, gh = 256, 256
     w, h = im.width, im.height
     xx, yy = np.meshgrid(w*(1/gw * np.arange(gw)), h*(1/gh * np.arange(gh)))
 
@@ -162,23 +171,23 @@ def main():
     positions = geometry.evaluate(points)
     rr.log(
         "hole",
-        rr.Points3D(positions, radii=5)
+        rr.Points3D(positions, radii=1)
     )
 
-    n = 20
-    ps = np.vstack([-0.5*w*np.ones(n), np.linspace(-0.5*h, 0.5*h, n)]).T
+    n = 10
+    ps = np.vstack([-0.5*w*np.ones(n), np.linspace(0, h, n)]).T
     vs = np.vstack([np.ones(n), np.zeros(n)]).T
     vs = vs / np.expand_dims(np.linalg.norm(vs, axis=-1), axis=-1)
 
-    print(geometry.jacobian(ps[0]))
-    print(geometry.hessian(ps[0]))
+    #print(geometry.jacobian(ps[0]))
+    #print(geometry.hessian(ps[0]))
 
-    #line_strips = []
-    #for p, v in zip(ps, vs):
-    #    curve = trace(geometry, p, v, w, 0.25)
-    #    line_strip = [geometry.evaluate(uv) for uv in curve]
-    #    line_strips.append(line_strip)
-    #rr.log("strip", rr.LineStrips3D(line_strips))
+    line_strips = []
+    for p, v in zip(ps, vs):
+        curve = trace(geometry, p, v, w, 0.25)
+        line_strip = [geometry.evaluate(uv) for uv in curve]
+        line_strips.append(line_strip)
+    rr.log("strip", rr.LineStrips3D(line_strips))
 
 
 main()
