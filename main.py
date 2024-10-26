@@ -1,9 +1,9 @@
-from dataclasses import dataclass
 import sys
 from typing import Iterable
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 from PIL import Image
 import rerun as rr
 
@@ -33,13 +33,56 @@ class AutoDiffMixin:
         self.hessian = jax.jacfwd(self.jacobian)
 
 
-#@dataclass
-#class DepthImageGeometry(Geometry):
-#    """Geometry where x=u, y=v, z=depth(u, v)"""
-#    image: Image
-#
-#    def evaluate(self, position: np.ndarray) -> float:
-#        return 
+def grayscale(im: np.ndarray) -> np.ndarray:
+    return np.mean(im, axis=-1)
+
+
+class DepthImageGeometry(Geometry):
+    """Geometry where x=u, y=v, z=depth(u, v)"""
+    def __init__(self, image: Image) -> None:
+        self.image = grayscale(np.array(image))
+        # pre-compute compute jacobians
+        self.dzdu, self.dzdv = np.gradient(self.image)
+        # pre-compute compute hessians
+        self.dzdu2, self.dzdudv = np.gradient(self.dzdu)
+        self.dzdvdu, self.dzdv2 = np.gradient(self.dzdv)
+
+    def evaluate(self, uv: np.ndarray) -> np.array:
+        # x = u, y = v, z = f(u, v)
+        u, v = np.hsplit(uv, 2)
+        ui, vi = np.astype(u, np.int32), np.astype(v, np.int32)
+        return np.hstack([uv, self.image[vi, ui]])
+
+    def jacobian(self, uv: jnp.ndarray) -> jnp.ndarray:
+        u, v = uv
+        return jnp.array([
+            [1, 0],  # dx/du, dx/dv
+            [0, 1],  # dy/du, dy/dv
+            [
+                self.dzdu[int(v), int(u)],  # dz/du
+                self.dzdv[int(v), int(u)],  # dz/dv
+             ],
+        ])
+
+    def hessian(self, uv: jnp.ndarray) -> jnp.ndarray:
+        # d2: shape (3, 2, 2)
+        u, v = uv
+        ui, vi = int(u), int(v)
+        return jnp.array([
+            [
+                [0, 0],
+                [0, 0],
+            ],
+            [
+                [0, 0],
+                [0, 0],
+            ],
+            [
+                [self.dzdu2[vi, ui], self.dzdudv[vi, ui]],  # dz/du2, dz/dudv
+                [self.dzdvdu[vi, ui], self.dzdv2[vi, ui]],  # dz/dvdu, dz/dv2
+            ],
+        ])
+
 
 class ZGeometry(Geometry):
     def evaluate(self, uv: jnp.ndarray) -> jnp.ndarray:
@@ -84,7 +127,7 @@ def compute_gamma(geometry: Geometry, p: jnp.ndarray) -> jnp.ndarray:
     # the index l is thus summed over
     return np.einsum('lij,lk,mk->mij', d2, d, inverse_metric)
 
-import numpy as np
+
 def acceleration(geometry: Geometry, position: np.ndarray, velocity: np.ndarray) -> np.ndarray:
     """Computes acceleration needed to stay on geodesic"""
     gamma = compute_gamma(geometry, position)
@@ -103,16 +146,23 @@ def trace(geometry: Geometry, p: np.ndarray, v: np.ndarray, length: float, dt: f
 def main():
     rr.init("plotter-art", spawn=True)
 
-    geometry = Bump()
-    gw, gh = 20, 20
-    w, h = 5, 5
-    xx, yy = np.meshgrid(w*(1/gw * np.arange(gw) - 0.5), h*(1/gh * np.arange(gh) - 0.5))
+    #geometry = Bump()
+
+    im = Image.open("depth/per.png")
+    geometry = DepthImageGeometry(im)
+    gw, gh = 128, 128
+    w, h = im.width, im.height
+    xx, yy = np.meshgrid(w*(1/gw * np.arange(gw)), h*(1/gh * np.arange(gh)))
+
+    #gw, gh = 20, 20
+    #w, h = 5, 5
+    #xx, yy = np.meshgrid(w*(1/gw * np.arange(gw) - 0.5), h*(1/gh * np.arange(gh) - 0.5))
 
     points = np.vstack([xx.ravel(), yy.ravel()]).T
     positions = geometry.evaluate(points)
     rr.log(
         "hole",
-        rr.Points3D(positions, radii=0.01)
+        rr.Points3D(positions, radii=5)
     )
 
     n = 20
@@ -120,12 +170,15 @@ def main():
     vs = np.vstack([np.ones(n), np.zeros(n)]).T
     vs = vs / np.expand_dims(np.linalg.norm(vs, axis=-1), axis=-1)
 
-    line_strips = []
-    for p, v in zip(ps, vs):
-        curve = trace(geometry, p, v, w, 0.25)
-        line_strip = [geometry.evaluate(uv) for uv in curve]
-        line_strips.append(line_strip)
-    rr.log("strip", rr.LineStrips3D(line_strips))
+    print(geometry.jacobian(ps[0]))
+    print(geometry.hessian(ps[0]))
+
+    #line_strips = []
+    #for p, v in zip(ps, vs):
+    #    curve = trace(geometry, p, v, w, 0.25)
+    #    line_strip = [geometry.evaluate(uv) for uv in curve]
+    #    line_strips.append(line_strip)
+    #rr.log("strip", rr.LineStrips3D(line_strips))
 
 
 main()
