@@ -2,25 +2,24 @@ import sys
 from typing import Iterable
 
 import jax
-import jax.numpy as jnp
 import numpy as np
 from PIL import Image
 import rerun as rr
 
 
 class Geometry:
-    def evaluate(self, uv: jnp.ndarray) -> jnp.ndarray:
+    def evaluate(self, uv: np.ndarray) -> np.ndarray:
         """Computes 3d-position for a uv position"""
         del uv
         raise NotImplemented
     
-    def jacobian(self, uv: jnp.ndarray) -> jnp.ndarray:
+    def jacobian(self, uv: np.ndarray) -> np.ndarray:
         """Computes the jacobian (all partial differentials) at (u,v). It's 3x2
         matrix with one row for each output cordinate and one colmn for each input cordinate"""
         del uv
         raise NotImplemented
 
-    def hessian(self, uv: jnp.ndarray) -> jnp.ndarray:
+    def hessian(self, uv: np.ndarray) -> np.ndarray:
         """Evaluates the hessian (all 2nd order partial differentials) at (u, v)"""
         del uv
         raise NotImplemented
@@ -41,23 +40,23 @@ class DepthImageGeometry(Geometry):
     """Geometry where x=u, y=v, z=depth(u, v)"""
     def __init__(self, image: Image) -> None:
         self.image = grayscale(np.array(image))
-        # pre-compute compute jacobians
-        self.dzdu, self.dzdv = np.gradient(self.image)
+        # pre-compute compute jacobians (image cordinates are y,x)
+        self.dzdv, self.dzdu = np.gradient(self.image)
         # pre-compute compute hessians
-        self.dzdu2, self.dzdudv = np.gradient(self.dzdu)
-        self.dzdvdu, self.dzdv2 = np.gradient(self.dzdv)
+        self.dzdudv, self.dzdu2 = np.gradient(self.dzdu)
+        self.dzdv2, self.dzdvdu = np.gradient(self.dzdv)
 
     def evaluate(self, uv: np.ndarray) -> np.array:
         # x = u, y = v, z = f(u, v)
         u, v = np.hsplit(uv, 2)
-        h, w = self.image.shape
+        h, w = self.image.shape  # image cordinates are y,x)
         ui = np.clip(np.astype(u, np.int32), 0, w - 1)
         vi = np.clip(np.astype(v, np.int32), 0, h - 1)
         return np.hstack([uv, self.image[vi, ui]])
 
-    def jacobian(self, uv: jnp.ndarray) -> jnp.ndarray:
+    def jacobian(self, uv: np.ndarray) -> np.ndarray:
         u, v = uv
-        h, w = self.image.shape
+        h, w = self.image.shape  # image cordinates are y,x)
         ui = np.clip(np.astype(u, np.int32), 0, w - 1)
         vi = np.clip(np.astype(v, np.int32), 0, h - 1)
         return np.array([            
@@ -69,10 +68,10 @@ class DepthImageGeometry(Geometry):
              ],
         ])
 
-    def hessian(self, uv: jnp.ndarray) -> jnp.ndarray:
+    def hessian(self, uv: np.ndarray) -> np.ndarray:
         # d2: shape (3, 2, 2)
         u, v = uv
-        h, w = self.image.shape
+        h, w = self.image.shape  # image cordinates are y,x)
         ui = np.clip(int(u), 0, w - 1)
         vi = np.clip(int(v), 0, h - 1)
         return np.array([
@@ -91,8 +90,9 @@ class DepthImageGeometry(Geometry):
         ])
 
 
+import jax.numpy as jnp
 class ZGeometry(Geometry):
-    def evaluate(self, uv: jnp.ndarray) -> jnp.ndarray:
+    def evaluate(self, uv: np.ndarray) -> np.ndarray:
         # x = u, y = v, z = f(u, v)
         return jnp.hstack([uv, jnp.expand_dims(self.z(uv), axis=-1)])
     
@@ -111,7 +111,22 @@ class Bump(ZGeometry, AutoDiffMixin):
         return jnp.cos(r)
 
 
-def evaluate_metric(geometry: Geometry, uv: jnp.ndarray) -> jnp.ndarray:
+def gaussian_curvature(jacobian: np.ndarray, hessian: np.ndarray) -> float:
+    # First fundamental form
+    G_matrix = np.dot(jacobian.T, jacobian)
+
+    # Second fundamental form
+    # first jacobian comupte normal
+    n = np.cross(jacobian[:, 0], jacobian[:, 1])
+    n /= np.linalg.norm(n)
+    # cmopute all dot-products with normal
+    S_matrix = np.einsum('i,ijk->jk', n, hessian)
+    
+    # Gaussian curvature (K)
+    return np.linalg.det(G_matrix) / np.linalg.det(S_matrix)
+
+
+def evaluate_metric(geometry: Geometry, uv: np.ndarray) -> np.ndarray:
     # compute d/du and d/dv
     jacobian = geometry.jacobian(uv)
     # metric is just all the dot products of the three combinations
@@ -119,10 +134,10 @@ def evaluate_metric(geometry: Geometry, uv: jnp.ndarray) -> jnp.ndarray:
     return np.dot(jacobian.T, jacobian)
 
 
-def compute_gamma(geometry: Geometry, p: jnp.ndarray) -> jnp.ndarray:
+def compute_gamma(geometry: Geometry, p: np.ndarray) -> np.ndarray:
     """Evaluates Christoffer Symbol of geometry at position"""
     metric = evaluate_metric(geometry, p)
-    inverse_metric = jnp.linalg.inv(metric)
+    inverse_metric = np.linalg.inv(metric)
 
     # compute all first order partial differentials at p, dx/du, dy/du, and so on
     d = geometry.jacobian(p)
@@ -146,8 +161,8 @@ def trace(geometry: Geometry, p: np.ndarray, v: np.ndarray, length: float, dt: f
     for _ in range(int(length / dt)):
         yield p
         a = acceleration(geometry, p, v)
-        if np.linalg.norm(a) > 10:
-            return
+        if np.linalg.norm(a) > 0.5:
+            break
         p = p + v * dt
         v = v + a * dt
 
@@ -175,7 +190,7 @@ def main():
     )
 
     n = 10
-    ps = np.vstack([-0.5*w*np.ones(n), np.linspace(0, h, n)]).T
+    ps = np.vstack([np.zeros(n), np.linspace(0, h, n)]).T
     vs = np.vstack([np.ones(n), np.zeros(n)]).T
     vs = vs / np.expand_dims(np.linalg.norm(vs, axis=-1), axis=-1)
 
