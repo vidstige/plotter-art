@@ -156,16 +156,20 @@ def acceleration(geometry: Geometry, position: np.ndarray, velocity: np.ndarray)
     return np.einsum("kij,i,j", gamma, velocity, velocity)
 
 
-def trace(geometry: Geometry, p: np.ndarray, v: np.ndarray, length: float, dt: float) -> Iterable[np.ndarray]:
+def trace(geometry: Geometry, p: np.ndarray, v: np.ndarray, length: float, dt: float) -> list[list[np.ndarray]]:
+    original_v = v
+    curves = [[]]
     # euler integration of geodesic equation
     for _ in range(int(length / dt)):
-        yield p
+        curves[-1].append(p)
         a = acceleration(geometry, p, v)
-        if np.linalg.norm(a) > 0.5:
-            break
+        if np.linalg.norm(a) > 10:
+            curves.append([])  # start new curve
+            a = np.array([0, 0])
+            v = original_v
         p = p + v * dt
         v = v + a * dt
-
+    return curves
 
 def main():
     rr.init("plotter-art", spawn=True)
@@ -189,19 +193,20 @@ def main():
         rr.Points3D(positions, radii=1)
     )
 
-    n = 10
+    n = 32
     ps = np.vstack([np.zeros(n), np.linspace(0, h, n)]).T
     vs = np.vstack([np.ones(n), np.zeros(n)]).T
     vs = vs / np.expand_dims(np.linalg.norm(vs, axis=-1), axis=-1)
 
-    #print(geometry.jacobian(ps[0]))
-    #print(geometry.hessian(ps[0]))
+    print(geometry.jacobian(ps[0]))
+    print(geometry.hessian(ps[0]))
 
     line_strips = []
     for p, v in zip(ps, vs):
-        curve = trace(geometry, p, v, w, 0.25)
-        line_strip = [geometry.evaluate(uv) for uv in curve]
-        line_strips.append(line_strip)
+        curves = trace(geometry, p, v, w, 0.25)
+        for curve in curves:
+            line_strip = [geometry.evaluate(uv) for uv in curve]
+            line_strips.append(line_strip)
     rr.log("strip", rr.LineStrips3D(line_strips))
 
 
