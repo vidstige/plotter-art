@@ -400,7 +400,7 @@ function drawDropdown(){
     const kbd = it.shortcut ? ` [${it.shortcut}]` : '';
     maxW = Math.max(maxW, textWidth5x7(it.label + kbd));
   }
-  const listW = Math.max(80, leftPad + maxW + rightPad);
+  const listW = Math.max(16, leftPad + maxW + rightPad);
   const listH = itemH * m.items.length + PAD*2;
 
   // shadow + panel
