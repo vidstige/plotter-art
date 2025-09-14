@@ -53,23 +53,13 @@ def rk2_step(x: float, y: float, step: float, direction: float):
 def integrate_from_seed(x0: float, y0: float):
     if not in_bounds(x0, y0): return []
     poly = [(x0, y0)]
-    # forward
     x, y = x0, y0
     for _ in range(MAX_STEPS):
         x, y, sp = rk2_step(x, y, STEP_MM, +1.0)
         if sp < MIN_SPEED or not in_bounds(x, y): break
         if math.hypot(x - poly[-1][0], y - poly[-1][1]) >= DECIM_MM:
             poly.append((x, y))
-    # backward (prepend)
-    x, y = x0, y0
-    back = []
-    for _ in range(MAX_STEPS):
-        x, y, sp = rk2_step(x, y, STEP_MM, -1.0)
-        if sp < MIN_SPEED or not in_bounds(x, y): break
-        if not back or math.hypot(x - back[-1][0], y - back[-1][1]) >= DECIM_MM:
-            back.append((x, y))
-    back.reverse()
-    return back + poly
+    return poly
 
 def main():
     # Random seeds in the page interior
