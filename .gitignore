@@ -1,2 +1,5 @@
 /venv/
 /depth/
+
+# mac debris
+.DS_Store
