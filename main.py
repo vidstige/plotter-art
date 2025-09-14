@@ -157,13 +157,13 @@ def acceleration(geometry: Geometry, position: np.ndarray, velocity: np.ndarray)
 
 
 def trace(geometry: Geometry, p: np.ndarray, v: np.ndarray, length: float, dt: float) -> list[list[np.ndarray]]:
-    original_v = v
+    original_v = np.array(v)
     curves = [[]]
     # euler integration of geodesic equation
     for _ in range(int(length / dt)):
         curves[-1].append(p)
         a = acceleration(geometry, p, v)
-        if np.linalg.norm(a) > 10:
+        if np.linalg.norm(a) > 0.2:
             curves.append([])  # start new curve
             a = np.array([0, 0])
             v = original_v
@@ -193,21 +193,50 @@ def main():
         rr.Points3D(positions, radii=1)
     )
 
-    n = 32
+    # draw strips from the left
+    n = 128
+    cutoff = 50
     ps = np.vstack([np.zeros(n), np.linspace(0, h, n)]).T
     vs = np.vstack([np.ones(n), np.zeros(n)]).T
     vs = vs / np.expand_dims(np.linalg.norm(vs, axis=-1), axis=-1)
-
-    print(geometry.jacobian(ps[0]))
-    print(geometry.hessian(ps[0]))
-
     line_strips = []
     for p, v in zip(ps, vs):
         curves = trace(geometry, p, v, w, 0.25)
         for curve in curves:
             line_strip = [geometry.evaluate(uv) for uv in curve]
-            line_strips.append(line_strip)
-    rr.log("strip", rr.LineStrips3D(line_strips))
+            line_strips.append([p for p in line_strip if p[2] > cutoff])
+
+    # draw strips from the right
+    ps = np.vstack([w*np.ones(n), np.linspace(0, h, n)]).T
+    vs = np.vstack([-np.ones(n), np.zeros(n)]).T
+    vs = vs / np.expand_dims(np.linalg.norm(vs, axis=-1), axis=-1)
+    for p, v in zip(ps, vs):
+        curves = trace(geometry, p, v, w, 0.25)
+        for curve in curves:
+            line_strip = [geometry.evaluate(uv) for uv in curve]
+            line_strips.append([p for p in line_strip if p[2] > cutoff])
+
+    # draw strips from the top
+    ps = np.vstack([np.linspace(0, w, n), np.zeros(n)]).T
+    vs = np.vstack([np.zeros(n), np.ones(n)]).T
+    vs = vs / np.expand_dims(np.linalg.norm(vs, axis=-1), axis=-1)
+    for p, v in zip(ps, vs):
+        curves = trace(geometry, p, v, w, 0.25)
+        for curve in curves:
+            line_strip = [geometry.evaluate(uv) for uv in curve]
+            line_strips.append([p for p in line_strip if p[2] > cutoff])
+
+    # draw strips from the bottom
+    ps = np.vstack([np.linspace(0, w, n), h*np.ones(n)]).T
+    vs = np.vstack([np.zeros(n), -np.ones(n)]).T
+    vs = vs / np.expand_dims(np.linalg.norm(vs, axis=-1), axis=-1)
+    for p, v in zip(ps, vs):
+        curves = trace(geometry, p, v, w, 0.25)
+        for curve in curves:
+            line_strip = [geometry.evaluate(uv) for uv in curve]
+            line_strips.append([p for p in line_strip if p[2] > cutoff])
+
+    rr.log("strip", rr.LineStrips3D(line_strips, radii=0.2))
 
 
 main()
