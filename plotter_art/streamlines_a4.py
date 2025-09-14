@@ -9,6 +9,7 @@ import math
 import random
 from pathlib import Path
 
+from plotter_art.paper import Paper, save_svg
 from plotter_art.perlin import grad_psi
 
 # ----------------------- USER PARAMETERS -----------------------
@@ -20,7 +21,6 @@ MARGIN_MM = 6.0          # keep lines away from edges
 STEP_MM = 0.7            # arc-length step for integration (mm)
 MAX_STEPS = 1000         # per direction
 MIN_SPEED = 1e-4         # stop if |v| < MIN_SPEED
-STROKE_WIDTH_MM = 0.25   # pen width in mm
 
 # Output simplification
 DECIM_MM = 0.12          # min distance between consecutive output points
@@ -72,32 +72,20 @@ def integrate_from_seed(x0: float, y0: float):
     back.reverse()
     return back + poly
 
-def main() -> Path:
+def main():
     # Random seeds in the page interior
     rng = random.Random(SEED)
     seeds_x = [rng.uniform(xmin, xmax) for _ in range(N_SEEDS)]
     seeds_y = [rng.uniform(ymin, ymax) for _ in range(N_SEEDS)]
 
-    polylines = []
+    paper = Paper((WIDTH_MM, HEIGHT_MM))
     for sx, sy in zip(seeds_x, seeds_y):
         line = integrate_from_seed(float(sx), float(sy))
         if len(line) >= 2:
-            polylines.append(line)
+            paper.add_polyline(line)
 
-    svg_path = Path("streamlines_a4.svg").absolute()
-    with svg_path.open("w", encoding="utf-8") as f:
-        f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
-        f.write(f'<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH_MM}mm" height="{HEIGHT_MM}mm" viewBox="0 0 {WIDTH_MM} {HEIGHT_MM}">\n')
-        f.write(f'  <rect x="0" y="0" width="{WIDTH_MM}" height="{HEIGHT_MM}" fill="white"/>\n')
-        f.write(f'  <g stroke="black" fill="none" stroke-width="{STROKE_WIDTH_MM}" stroke-linecap="round" stroke-linejoin="round">\n')
-        for line in polylines:
-            pts = " ".join(f"{x:.2f},{y:.2f}" for x, y in line)
-            f.write(f'    <polyline points="{pts}"/>\n')
-        f.write('  </g>\n')
-        f.write('</svg>\n')
-    print(f"Generated {len(polylines)} streamlines.")
-    print(f"Saved SVG to: {svg_path}")
-    return svg_path
+    save_svg(Path("output") / "streamlines.svg", paper)
+
 
 if __name__ == "__main__":
     main()
