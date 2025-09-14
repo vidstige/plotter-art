@@ -3,6 +3,9 @@ pillow==11.0.0
 pygeodesic==0.1.10
 rerun-sdk==0.19.0
 
+# for better typing support
+types-lxml
+
 # ascii stuff
 pycairo
 freetype-py
