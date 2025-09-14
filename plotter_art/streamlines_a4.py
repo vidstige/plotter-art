@@ -16,6 +16,7 @@ from plotter_art.perlin import grad_psi
 SEED = 7                 # RNG seed for reproducibility
 N_SEEDS = 350            # number of random seed points
 A4_SIZE = (297.0, 210.0)
+PAPER = Paper(A4_SIZE)
 MARGIN_MM = 6.0          # keep lines away from edges
 STEP_MM = 0.7            # arc-length step for integration (mm)
 MAX_STEPS = 1000         # per direction
@@ -31,10 +32,9 @@ def vfield(x_mm: float, y_mm: float) -> tuple[float, float]:
     return (gy, -gx)
 
 # --- Integration domain (A4 with margin) ---
-xmin = MARGIN_MM; ymin = MARGIN_MM
-xmax = A4_SIZE[0] - MARGIN_MM; ymax = A4_SIZE[1] - MARGIN_MM
-
 def in_bounds(x: float, y: float) -> bool:
+    xmin = MARGIN_MM; ymin = MARGIN_MM
+    xmax = PAPER.width - MARGIN_MM; ymax = PAPER.height - MARGIN_MM
     return (xmin <= x <= xmax) and (ymin <= y <= ymax)
 
 def rk2_step(x: float, y: float, step: float, direction: float):
@@ -50,7 +50,7 @@ def rk2_step(x: float, y: float, step: float, direction: float):
     mnx, mny = mvx / ms, mvy / ms
     return x + step * direction * mnx, y + step * direction * mny, ms
 
-def integrate_from_seed(x0: float, y0: float):
+def integrate_from_seed(x0: float, y0: float, paper: Paper):
     if not in_bounds(x0, y0): return []
     poly = [(x0, y0)]
     x, y = x0, y0
@@ -64,12 +64,14 @@ def integrate_from_seed(x0: float, y0: float):
 def main():
     # Random seeds in the page interior
     rng = random.Random(SEED)
+    xmin = MARGIN_MM; ymin = MARGIN_MM
+    xmax = PAPER.width - MARGIN_MM; ymax = PAPER.height - MARGIN_MM
     seeds_x = [rng.uniform(xmin, xmax) for _ in range(N_SEEDS)]
     seeds_y = [rng.uniform(ymin, ymax) for _ in range(N_SEEDS)]
 
-    paper = Paper(A4_SIZE)
+    paper = PAPER
     for sx, sy in zip(seeds_x, seeds_y):
-        line = integrate_from_seed(float(sx), float(sy))
+        line = integrate_from_seed(sx, sy, paper)
         if len(line) >= 2:
             paper.add_polyline(line)
 
