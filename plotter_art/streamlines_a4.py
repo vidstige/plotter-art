@@ -15,8 +15,7 @@ from plotter_art.perlin import grad_psi
 # ----------------------- USER PARAMETERS -----------------------
 SEED = 7                 # RNG seed for reproducibility
 N_SEEDS = 350            # number of random seed points
-WIDTH_MM = 210.0         # A4 size
-HEIGHT_MM = 297.0
+A4_SIZE = (297.0, 210.0)
 MARGIN_MM = 6.0          # keep lines away from edges
 STEP_MM = 0.7            # arc-length step for integration (mm)
 MAX_STEPS = 1000         # per direction
@@ -33,7 +32,7 @@ def vfield(x_mm: float, y_mm: float) -> tuple[float, float]:
 
 # --- Integration domain (A4 with margin) ---
 xmin = MARGIN_MM; ymin = MARGIN_MM
-xmax = WIDTH_MM - MARGIN_MM; ymax = HEIGHT_MM - MARGIN_MM
+xmax = A4_SIZE[0] - MARGIN_MM; ymax = A4_SIZE[1] - MARGIN_MM
 
 def in_bounds(x: float, y: float) -> bool:
     return (xmin <= x <= xmax) and (ymin <= y <= ymax)
@@ -78,7 +77,7 @@ def main():
     seeds_x = [rng.uniform(xmin, xmax) for _ in range(N_SEEDS)]
     seeds_y = [rng.uniform(ymin, ymax) for _ in range(N_SEEDS)]
 
-    paper = Paper((WIDTH_MM, HEIGHT_MM))
+    paper = Paper(A4_SIZE)
     for sx, sy in zip(seeds_x, seeds_y):
         line = integrate_from_seed(float(sx), float(sy))
         if len(line) >= 2:
