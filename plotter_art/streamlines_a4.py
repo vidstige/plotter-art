@@ -6,7 +6,7 @@ Outputs an A4 SVG with black strokes, uniform width — ideal for pen plotting.
 """
 
 import math
-import numpy as np
+import random
 from pathlib import Path
 
 from plotter_art.perlin import grad_psi
@@ -74,9 +74,9 @@ def integrate_from_seed(x0: float, y0: float):
 
 def main() -> Path:
     # Random seeds in the page interior
-    rng = np.random.default_rng(SEED)
-    seeds_x = rng.uniform(xmin, xmax, size=N_SEEDS)
-    seeds_y = rng.uniform(ymin, ymax, size=N_SEEDS)
+    rng = random.Random(SEED)
+    seeds_x = [rng.uniform(xmin, xmax) for _ in range(N_SEEDS)]
+    seeds_y = [rng.uniform(ymin, ymax) for _ in range(N_SEEDS)]
 
     polylines = []
     for sx, sy in zip(seeds_x, seeds_y):

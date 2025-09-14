@@ -1,14 +1,14 @@
 import math
-
-import numpy as np
+import random
 
 # Perlin noise scale (mm per lattice unit). Larger -> broader features.
 SEED = 7                 # RNG seed for reproducibility
 NOISE_SCALE_MM = 9.0
 
 # Permutation table for Perlin; repeat to avoid masking at edges
-rng = np.random.default_rng(SEED)
-_perm = list(map(int, rng.permutation(256)))
+rng = random.Random(SEED)
+_perm = list(range(256))
+rng.shuffle(_perm)
 _perm512 = _perm + _perm  # length 512
 
 def fade(t: float) -> float:
