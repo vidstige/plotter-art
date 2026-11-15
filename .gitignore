@@ -2,8 +2,5 @@
 /depth/
 /fonts/
 
-__pycache__/
-*.pyc
-
 # mac debris
 .DS_Store
