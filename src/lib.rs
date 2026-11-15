@@ -1,5 +1,6 @@
 //! Raster-driven line art for pen plotters.
 pub mod args;
+pub mod contour;
 pub mod density;
 pub mod inflate;
 pub mod offset;
