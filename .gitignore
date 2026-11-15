@@ -1,6 +1,8 @@
-/venv/
+/target/
+/output/
 /depth/
 /fonts/
+/venv/
 
 # mac debris
 .DS_Store
