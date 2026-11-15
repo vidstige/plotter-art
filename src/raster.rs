@@ -45,6 +45,13 @@ impl Raster {
         vec2(f(1.0, 0.0) - f(-1.0, 0.0), f(0.0, 1.0) - f(0.0, -1.0)) * 0.5
     }
 
+    /// Raster with f evaluated at pixel centers.
+    #[cfg(test)]
+    pub fn from_fn(width: usize, height: usize, f: impl Fn(f64, f64) -> f64) -> Raster {
+        let at = |i: usize| f((i % width) as f64 + 0.5, (i / width) as f64 + 0.5);
+        Raster { width, height, data: (0..width * height).map(|i| at(i) as f32).collect() }
+    }
+
     pub fn map(&self, f: impl Fn(f32) -> f32) -> Raster {
         let data = self.data.iter().map(|&v| f(v)).collect();
         Raster { data, ..*self }

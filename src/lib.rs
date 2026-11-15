@@ -2,7 +2,9 @@
 pub mod args;
 pub mod density;
 pub mod inflate;
+pub mod offset;
 pub mod paper;
+pub mod parallel;
 pub mod png;
 pub mod raster;
 pub mod rng;
